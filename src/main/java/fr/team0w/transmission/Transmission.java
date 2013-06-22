@@ -21,7 +21,7 @@ import fr.team0w.transmission.impl.TransmissionClientImpl;
  */
 public class Transmission {
 	
-	private static final HttpClientBuilder httpClientBuilder = HttpClientBuilder.create();
+	private static final HttpClientBuilder httpClientBuilder = HttpClientBuilder.create().disableAutomaticRetries();
 	
 	/**
 	 * 

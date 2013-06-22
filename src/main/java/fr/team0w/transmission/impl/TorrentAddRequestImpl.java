@@ -3,6 +3,10 @@
  */
 package fr.team0w.transmission.impl;
 
+import static fr.team0w.transmission.impl.TorrentAddRequestImpl.Args.*;
+
+import java.io.IOException;
+import java.util.Enumeration;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -14,81 +18,75 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.BooleanNode;
+import com.fasterxml.jackson.databind.node.IntNode;
+import com.fasterxml.jackson.databind.node.NumericNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 
 import fr.team0w.transmission.iface.Torrent;
 import fr.team0w.transmission.iface.TorrentAddRequest;
+import fr.team0w.transmission.iface.TransmissionException;
+import fr.team0w.transmission.iface.TransmissionSessionIDManager;
 
 /**
  * @author nic0w
  *
  */
-public class TorrentAddRequestImpl implements TorrentAddRequest {
+public class TorrentAddRequestImpl extends TransmissionRequestWithResult implements TorrentAddRequest {
 
-	interface Arguments {
+	enum Args implements TransmissionRequest.JsonifiableEnum {
 		
-		   public static final String COOKIES           = "cookies";            //pointer to a string of one or more cookies.
-		   public static final String DOWNLOAD_DIR      = "download-dir";       //path to download the torrent to
-		   public static final String FILENAME          = "filename";           //filename or URL of the .torrent file
-		   public static final String METAINFO          = "metainfo";           //base64-encoded .torrent content
-		   public static final String PAUSED            = "paused";             //if true, don't start the torrent
-		   public static final String PEER_LIMIT        = "peer-limit";         //maximum number of peers
-		   public static final String BANDWIDTHPRIORITY = "bandwidthPriority";  //torrent's bandwidth tr_priority_t 
-		   public static final String FILES_WANTED      = "files-wanted";       //indices of file(s) to download
-		   public static final String FILES_UNWANTED    = "files-unwanted";     //indices of file(s) to not download
-		   public static final String PRIORITY_HIGH     = "priority-high";      //indices of high-priority file(s)
-		   public static final String PRIORITY_LOW      = "priority-low";       //indices of low-priority file(s)
-		   public static final String PRIORITY_NORMAL   = "priority-normal";    //indices of normal-priority file(s)
+		   COOKIES           , //pointer to a string of one or more cookies.
+		   DOWNLOAD_DIR      , //path to download the torrent to
+		   FILENAME          , //filename or URL of the .torrent file
+		   METAINFO          , //base64-encoded .torrent content
+		   PAUSED            , //if true, don't start the torrent
+		   PEER_LIMIT        , //maximum number of peers
+		   BANDWIDTHPRIORITY , //torrent's bandwidth tr_priority_t 
+		   FILES_WANTED      , //indices of file(s) to download
+		   FILES_UNWANTED    , //indices of file(s) to not download
+		   PRIORITY_HIGH     , //indices of high-priority file(s)
+		   PRIORITY_LOW      , //indices of low-priority file(s)
+		   PRIORITY_NORMAL   ; //indices of normal-priority file(s)
+
+		@Override
+		public String toJsonName() {
+			return this.toString().replace('_', '-').toLowerCase();
+		}     
 		
 	}
+	
+	private static final String TORRENT_ADDED = "torrent-added";
 	
 	private static final Pattern BASE64_PATTERN = Pattern.compile(
 			"^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{4}|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)$"
 			);
 
-	private static final String METHOD    = "method";
-	private static final String ARGUMENTS = "arguments";
 
+	public TorrentAddRequestImpl(TransmissionSessionIDManager sessionManager, HttpClient httpClient, HttpPost addRequest, String torrent) {
 
-	private final ObjectMapper jsonMapper;
-
-	private final HttpClient httpClient;
-	private final HttpPost httpRequest;
-
-	private final ObjectNode methodCall;
-	private final ObjectNode methodArgs;
-
-
-	public TorrentAddRequestImpl(HttpClient httpClient, HttpPost addRequest, String torrent) {
-
-		this.jsonMapper = new ObjectMapper();
-
-		this.httpClient  = httpClient;
-		this.httpRequest = addRequest;
-
-		this.methodCall = this.jsonMapper.valueToTree(TransmissionMethod.TORRENT_ADD);
-
-		this.methodArgs = this.methodCall.putObject(ARGUMENTS);
+		super(sessionManager, httpClient, addRequest, TransmissionMethod.TORRENT_ADD, TORRENT_ADDED);
 
 		Matcher base64Matcher = BASE64_PATTERN.matcher(torrent);
 
 		if(base64Matcher.matches())
-			this.methodArgs.put(Arguments.METAINFO, torrent);
+			super.setArgument(METAINFO, TextNode.valueOf(torrent));
 		else
-			this.methodArgs.put(Arguments.FILENAME, torrent);
+			super.setArgument(FILENAME, TextNode.valueOf(torrent));
 	}
 
 	@Override
 	public TorrentAddRequest addCookie(String name, String content) {
 		
-		String cookies = this.methodArgs.get(Arguments.COOKIES).asText();
+		String cookies = super.getArgumentValue(COOKIES).asText();
 		
 		if(cookies == null)
 			cookies = "";
 		
 		cookies += String.format("%s=%s; ", name, content);
 		
-		this.methodArgs.put(Arguments.COOKIES, cookies);
+		super.setArgument(COOKIES, TextNode.valueOf(cookies));
 		
 		return this;
 	}
@@ -96,7 +94,7 @@ public class TorrentAddRequestImpl implements TorrentAddRequest {
 	@Override
 	public TorrentAddRequest setDownloadDirectory(String path) {
 		
-		this.methodArgs.put(Arguments.DOWNLOAD_DIR, path);
+		super.setArgument(DOWNLOAD_DIR, TextNode.valueOf(path));
 		
 		return this;
 	}
@@ -105,41 +103,53 @@ public class TorrentAddRequestImpl implements TorrentAddRequest {
 	@Override
 	public TorrentAddRequest pauseAtStart(boolean pause) {
 		
-		this.methodArgs.put(Arguments.PAUSED, pause);
+		super.setArgument(PAUSED, BooleanNode.valueOf(pause));
 		
 		return this;
 	}
 
 	@Override
 	public TorrentAddRequest setPeerLimit(Number maxPeers) {
-		// TODO Auto-generated method stub
-		return null;
+		
+		super.setArgument(PEER_LIMIT, IntNode.valueOf(maxPeers.intValue()));
+		
+		return this;
 	}
 
 
 	@Override
 	public TorrentAddRequest setBandwithPriority(Number torrentBandwithPriority) {
-		// TODO Auto-generated method stub
-		return null;
+		
+		super.setArgument(BANDWIDTHPRIORITY, IntNode.valueOf(torrentBandwithPriority.intValue()));
+		
+		return this;
 	}
 
 	@Override
 	public TorrentAddRequest setWantedFiles(int... fileIDs) {
 		// TODO Auto-generated method stub
-		return null;
+		return this;
 	}
 
 
 	@Override
 	public TorrentAddRequest setUnwantedFiles(int... fileIDs) {
 		// TODO Auto-generated method stub
-		return null;
+		return this;
 	}
 
 
 	@Override
-	public Torrent add() {
-		// TODO Auto-generated method stub
+	public Torrent add() throws IOException, TransmissionException {
+		
+		JsonNode torrentAdded = super.execute();
+		
+		String name = torrentAdded.get("name").textValue();
+		
+		String hashString = torrentAdded.get("hashString").textValue();
+		
+		int id = torrentAdded.get("id").asInt(); 
+		
 		return null;
 	}
 

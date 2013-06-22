@@ -17,15 +17,18 @@ import fr.team0w.transmission.iface.Torrent;
 import fr.team0w.transmission.iface.TorrentAddRequest;
 import fr.team0w.transmission.iface.TorrentBatch;
 import fr.team0w.transmission.iface.TransmissionClient;
+import fr.team0w.transmission.iface.TransmissionSessionIDManager;
 
 /**
  * @author nic0w
  *
  */
-public class TransmissionClientImpl implements TransmissionClient {
+public class TransmissionClientImpl implements TransmissionClient, TransmissionSessionIDManager {
 
 	private final HttpClient httpClient;
 	private final URI transmissionRPC;
+	
+	private String transmissionSessionID;
 	
 	/**
 	 * 
@@ -35,6 +38,8 @@ public class TransmissionClientImpl implements TransmissionClient {
 		this.httpClient = client;
 		this.transmissionRPC = rpcURI;
 		
+		this.transmissionSessionID = "";
+		
 	}
 
 	@Override
@@ -42,13 +47,23 @@ public class TransmissionClientImpl implements TransmissionClient {
 		
 		HttpPost addRequest = new HttpPost(transmissionRPC);
 			
-		return new TorrentAddRequestImpl(this.httpClient, addRequest, torrent);
+		return new TorrentAddRequestImpl(this, this.httpClient, addRequest, torrent);
 	}
 
 	@Override
 	public TorrentBatch newBatch(Torrent... torrents) {
 		// TODO Auto-generated method stub
 		return null;
+	}
+
+	@Override
+	public void setTransmissionSessionID(String id) {
+		this.transmissionSessionID = id;
+	}
+
+	@Override
+	public String getTransmissionSessionID() {
+		return this.getTransmissionSessionID();
 	}
 
 }

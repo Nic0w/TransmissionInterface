@@ -1,5 +1,7 @@
 package fr.team0w.transmission.iface;
 
+import java.io.IOException;
+
 public interface TorrentAddRequest {
 
 	/**
@@ -53,6 +55,8 @@ public interface TorrentAddRequest {
 	
 	/**
 	 * @return The newly created Torrent
+	 * @throws TransmissionException 
+	 * @throws IOException 
 	 */
-	public Torrent add();
+	public Torrent add() throws IOException, TransmissionException;
 }
